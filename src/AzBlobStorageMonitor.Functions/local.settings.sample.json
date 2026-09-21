@@ -1,0 +1,19 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AZURE_FUNCTIONS_ENVIRONMENT": "Development",
+    "GrowthMonitorSchedule": "0 15 0 * * *",
+    "GrowthMonitor__MonitorName": "production-archive",
+    "GrowthMonitor__StorageAccountResourceId": "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account>",
+    "GrowthMonitor__ContainerName": "<container-name>",
+    "GrowthMonitor__HistoryTableServiceUri": "https://<state-storage-account>.table.core.windows.net",
+    "GrowthMonitor__HistoryTableName": "BlobGrowthHistory",
+    "GrowthMonitor__LogicAppWebhookUrl": "https://prod-00.<region>.logic.azure.com/workflows/...",
+    "GrowthMonitor__GrowthWindowDays": "3",
+    "GrowthMonitor__MinimumDailyGrowthBytes": "0",
+    "GrowthMonitor__MetricLookbackHours": "24",
+    "GrowthMonitor__Subscribers__0": "storage-operations@example.com"
+  }
+}

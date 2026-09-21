@@ -1,0 +1,41 @@
+using Azure.Core;
+using Azure.Data.Tables;
+using Azure.Identity;
+using Azure.Monitor.Query;
+using AzBlobStorageMonitor.Functions.Configuration;
+using AzBlobStorageMonitor.Functions.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureServices((context, services) =>
+    {
+        var options = MonitorOptions.Load(context.Configuration);
+
+        services.AddSingleton(options);
+        services.AddSingleton<TokenCredential>(_ =>
+            string.Equals(
+                context.HostingEnvironment.EnvironmentName,
+                "Development",
+                StringComparison.OrdinalIgnoreCase)
+                ? new DefaultAzureCredential()
+                : new ManagedIdentityCredential(
+                    new ManagedIdentityCredentialOptions()));
+        services.AddSingleton(sp =>
+            new MetricsQueryClient(sp.GetRequiredService<TokenCredential>()));
+        services.AddSingleton(sp =>
+            new TableServiceClient(
+                options.HistoryTableServiceUri,
+                sp.GetRequiredService<TokenCredential>()));
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton<HttpClient>();
+        services.AddSingleton<IContainerSizeReader, AzureMonitorContainerSizeReader>();
+        services.AddSingleton<IMonitorHistoryStore, TableMonitorHistoryStore>();
+        services.AddSingleton<INotificationSender, LogicAppNotificationSender>();
+        services.AddSingleton<GrowthTrendEvaluator>();
+        services.AddSingleton<ContainerGrowthMonitor>();
+    })
+    .Build();
+
+await host.RunAsync();

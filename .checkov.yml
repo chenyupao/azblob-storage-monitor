@@ -1,0 +1,29 @@
+compact: true
+framework:
+  - bicep
+skip-check:
+  # Flex Consumption is platform-managed; dedicated App Service instance and
+  # zone settings do not apply to FC1.
+  - CKV_AZURE_225
+  - CKV_AZURE_212
+  - CKV_AZURE_213
+
+  # This timer-only Function has publicNetworkAccess disabled and exposes no
+  # HTTP trigger, so App Service Authentication and request diagnostics checks
+  # are not applicable.
+  - CKV_AZURE_13
+  - CKV_AZURE_65
+  - CKV_AZURE_66
+  - CKV_AZURE_63
+  - CKV_AZURE_80
+  - CKV_AZURE_88
+
+  # Checkov evaluates the sites/config child as a separate web app and cannot
+  # inherit publicNetworkAccess from its parent.
+  - CKV_AZURE_222
+
+  # The storage name is generated as "st" plus uniqueString and truncated to
+  # 24 lowercase alphanumeric characters. The account explicitly uses ZRS,
+  # which the current Bicep graph parser does not recognize through modules.
+  - CKV_AZURE_43
+  - CKV_AZURE_206
