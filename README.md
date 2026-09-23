@@ -6,6 +6,27 @@ a configurable number of consecutive calendar days.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    A[Blob Storage container] -->|advanced platform metrics| B[Azure Monitor\nContainerUsedSize]
+    C[Timer-triggered Azure Function] -->|queries latest metric values| B
+    C -->|stores daily samples| D[Azure Table Storage\nState + history]
+    C -->|evaluates consecutive growth| E[Growth trend logic]
+    E -->|alert payload| F[Logic App HTTP trigger]
+    F -->|sends email| G[Outlook / SMTP / ACS email action]
+    H[Subscribers] --> G
+
+    classDef azure fill:#0078D4,color:#fff,stroke:#005A9E;
+    classDef app fill:#50E6FF,color:#000,stroke:#0078D4;
+    classDef data fill:#D0F0FD,color:#000,stroke:#6CB4EE;
+    classDef action fill:#E1F5FE,color:#000,stroke:#81D4FA;
+
+    class A,B azure;
+    class C,E app;
+    class D data;
+    class F,G,H action;
+```
+
 1. A timer-triggered Function queries Azure Monitor's `ContainerUsedSize`
    metric for one container.
 2. The Function sums the latest metric values across blob type and access tier
