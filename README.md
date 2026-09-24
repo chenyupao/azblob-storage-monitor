@@ -87,7 +87,7 @@ Copy `src\AzBlobStorageMonitor.Functions\local.settings.sample.json` to
 
 | Setting | Meaning |
 |---|---|
-| `GrowthMonitorSchedule` | NCRONTAB timer schedule; the sample runs daily at 00:15 UTC |
+| `GrowthMonitorSchedule` | NCrontab timer schedule; the sample runs daily at 00:15 UTC |
 | `GrowthMonitor__MonitorName` | Stable unique key for this monitored container |
 | `GrowthMonitor__StorageAccountResourceId` | Full Azure resource ID of the monitored account |
 | `GrowthMonitor__ContainerName` | Container selected in the metric filter |
