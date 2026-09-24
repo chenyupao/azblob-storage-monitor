@@ -6,48 +6,92 @@ a configurable number of consecutive calendar days.
 
 ## Architecture
 
+The measurement source is configurable, while history storage, growth
+evaluation, and notification behavior are shared by both implementations.
+
 ```mermaid
 flowchart LR
-    A[Blob Storage container] -->|advanced platform metrics| B[Azure Monitor\nContainerUsedSize]
-    C[Timer-triggered Azure Function] -->|queries latest metric values| B
-    C -->|stores daily samples| D[Azure Table Storage\nState + history]
-    C -->|evaluates consecutive growth| E[Growth trend logic]
-    E -->|alert payload| F[Logic App HTTP trigger]
-    F -->|sends email| G[Outlook / SMTP / ACS email action]
-    H[Subscribers] --> G
+    A[Configured measurement source] -->|current size in bytes| B[Timer-triggered Azure Function]
+    B -->|stores daily sample| C[Azure Table Storage\nState + history]
+    B -->|evaluates consecutive growth| D[Growth trend logic]
+    D -->|alert payload| E[Logic App HTTP trigger]
+    E -->|sends email| F[Outlook / SMTP / ACS email action]
+    G[Subscribers] --> F
 
     classDef azure fill:#0078D4,color:#fff,stroke:#005A9E;
     classDef app fill:#50E6FF,color:#000,stroke:#0078D4;
     classDef data fill:#D0F0FD,color:#000,stroke:#6CB4EE;
     classDef action fill:#E1F5FE,color:#000,stroke:#81D4FA;
 
-    class A,B azure;
-    class C,E app;
-    class D data;
-    class F,G,H action;
+    class A azure;
+    class B,D app;
+    class C data;
+    class E,F,G action;
 ```
 
-1. A timer-triggered Function queries Azure Monitor's `ContainerUsedSize`
-   metric for one container.
-2. The Function sums the latest metric values across blob type and access tier
-   series.
-3. One idempotent sample per UTC date is stored in Azure Table Storage.
-4. The Function evaluates consecutive calendar-day increases.
-5. A Logic App webhook receives an alert payload and sends email to the
+1. The timer-triggered Function obtains the current container size from the
+   configured measurement source.
+2. One idempotent sample per UTC date is stored in Azure Table Storage.
+3. The Function evaluates consecutive calendar-day increases.
+4. A Logic App webhook receives an alert payload and sends email to the
    configured subscribers.
-6. Alert state prevents duplicate email while the same growth streak
+5. Alert state prevents duplicate email while the same growth streak
    continues. A non-growing day resets the state.
 
-`ContainerUsedSize` is part of Azure Blob Storage advanced platform metrics,
-which is currently in preview.
+### Azure Monitor metrics
+
+Set `GrowthMonitor__MeasurementSource` to `AzureMonitorMetrics` to query the
+`ContainerUsedSize` advanced platform metric. The Function sums the latest
+values across blob type and access tier series. This avoids scanning every
+blob, but advanced platform metrics are currently in preview and metric data
+can take time to appear.
+
+```mermaid
+flowchart LR
+    A[Blob Storage container] -->|publishes advanced platform metrics| B[Azure Monitor\nContainerUsedSize]
+    C[Azure Function] -->|queries latest metric series| B
+    B -->|size in bytes| C
+
+    classDef azure fill:#0078D4,color:#fff,stroke:#005A9E;
+    classDef app fill:#50E6FF,color:#000,stroke:#0078D4;
+
+    class A,B azure;
+    class C app;
+```
+
+### Blob listing
+
+Set `GrowthMonitor__MeasurementSource` to `BlobListing` to use generally
+available Blob service APIs instead of preview metrics. The Function pages
+through the container, counts live blobs, and sums each blob's `ContentLength`.
+This scans the whole container on every run, so large containers take longer
+and incur list-operation transactions. Snapshots, versions, and soft-deleted
+blobs are not included.
+
+```mermaid
+flowchart LR
+    A[Azure Function] -->|lists blobs with managed identity| B[Blob Storage container]
+    B -->|paged blob names and content lengths| A
+    A -->|sums content lengths| C[Container size in bytes]
+
+    classDef azure fill:#0078D4,color:#fff,stroke:#005A9E;
+    classDef app fill:#50E6FF,color:#000,stroke:#0078D4;
+    classDef data fill:#D0F0FD,color:#000,stroke:#6CB4EE;
+
+    class B azure;
+    class A app;
+    class C data;
+```
 
 ## Prerequisites
 
 - .NET 10 SDK
 - Azure Functions Core Tools v4 for local execution
-- Azure CLI for enabling storage metrics and deploying Azure infrastructure
+- Azure CLI for deploying Azure infrastructure and, when selected, enabling
+  advanced platform metrics
 - Azurite for local Function host and Table Storage
-- A Blob Storage account with advanced platform metrics enabled
+- A Blob Storage account with advanced platform metrics enabled when using
+  `AzureMonitorMetrics`
 - A state storage account with Table service
 - A Logic App with an HTTP request trigger and an email action
 
@@ -71,9 +115,12 @@ Metric data can take up to six hours to appear after the rule changes.
 
 ## Azure permissions
 
-Enable a system-assigned managed identity on the Function App and grant it:
+Enable a managed identity on the Function App and grant it:
 
-- **Monitoring Reader** on the monitored storage account.
+- **Monitoring Reader** on the monitored storage account when using
+  `AzureMonitorMetrics`.
+- **Storage Blob Data Reader** on the monitored storage account when using
+  `BlobListing`.
 - **Storage Table Data Contributor** on the state storage account.
 
 The code uses `ManagedIdentityCredential` in Azure and
@@ -91,6 +138,8 @@ Copy `src\AzBlobStorageMonitor.Functions\local.settings.sample.json` to
 | `GrowthMonitor__MonitorName` | Stable unique key for this monitored container |
 | `GrowthMonitor__StorageAccountResourceId` | Full Azure resource ID of the monitored account |
 | `GrowthMonitor__ContainerName` | Container selected in the metric filter |
+| `GrowthMonitor__MeasurementSource` | `AzureMonitorMetrics` (default) or `BlobListing` |
+| `GrowthMonitor__BlobServiceUri` | Blob endpoint; required for `BlobListing` |
 | `GrowthMonitor__HistoryTableServiceUri` | Managed-identity Table service endpoint |
 | `GrowthMonitor__HistoryTableName` | Table used for samples and alert state |
 | `GrowthMonitor__LogicAppWebhookUrl` | HTTP-trigger URL for the email Logic App |
@@ -99,6 +148,10 @@ Copy `src\AzBlobStorageMonitor.Functions\local.settings.sample.json` to
 | `GrowthMonitor__MetricLookbackHours` | Metric query lookback; default `24` |
 | `GrowthMonitor__Subscribers__N` | One email address per numbered setting |
 | `GrowthMonitor__SubscribersCsv` | Optional comma-separated subscriber list, used by the Bicep deployment |
+
+The Bicep parameter is named `measurementSource` and assigns only the role
+needed by the selected implementation. `BlobListing` also requires network
+access from the Function App to the monitored account's Blob service endpoint.
 
 Three growth days require four consecutive daily measurements. For example,
 100 GB, 110 GB, 120 GB, and 125 GB produce three daily increases.

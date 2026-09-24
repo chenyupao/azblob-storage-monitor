@@ -2,6 +2,7 @@ using Azure.Core;
 using Azure.Data.Tables;
 using Azure.Identity;
 using Azure.Monitor.Query;
+using Azure.Storage.Blobs;
 using AzBlobStorageMonitor.Functions.Configuration;
 using AzBlobStorageMonitor.Functions.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,12 +26,28 @@ var host = new HostBuilder()
         services.AddSingleton(sp =>
             new MetricsQueryClient(sp.GetRequiredService<TokenCredential>()));
         services.AddSingleton(sp =>
+            new BlobServiceClient(
+                options.BlobServiceUri!,
+                sp.GetRequiredService<TokenCredential>())
+                .GetBlobContainerClient(options.ContainerName));
+        services.AddSingleton(sp =>
             new TableServiceClient(
                 options.HistoryTableServiceUri,
                 sp.GetRequiredService<TokenCredential>()));
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<HttpClient>();
-        services.AddSingleton<IContainerSizeReader, AzureMonitorContainerSizeReader>();
+        services.AddSingleton<AzureMonitorContainerSizeReader>();
+        services.AddSingleton<BlobListingContainerSizeReader>();
+        services.AddSingleton<IContainerSizeReader>(sp =>
+            options.MeasurementSource switch
+            {
+                ContainerMeasurementSource.AzureMonitorMetrics =>
+                    sp.GetRequiredService<AzureMonitorContainerSizeReader>(),
+                ContainerMeasurementSource.BlobListing =>
+                    sp.GetRequiredService<BlobListingContainerSizeReader>(),
+                _ => throw new InvalidOperationException(
+                    $"Unsupported measurement source '{options.MeasurementSource}'.")
+            });
         services.AddSingleton<IMonitorHistoryStore, TableMonitorHistoryStore>();
         services.AddSingleton<INotificationSender, LogicAppNotificationSender>();
         services.AddSingleton<GrowthTrendEvaluator>();

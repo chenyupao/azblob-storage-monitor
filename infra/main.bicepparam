@@ -12,6 +12,7 @@ param subscribers = [
 ]
 param growthWindowDays = 3
 param minimumDailyGrowthBytes = 0
+param measurementSource = 'BlobListing'
 param tags = {
   workload: 'azblob-storage-monitor'
   environment: 'prod'

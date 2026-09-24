@@ -70,6 +70,62 @@ public sealed class MonitorOptionsTests
             options.Subscribers);
     }
 
+    [Fact]
+    public void DefaultsMeasurementSourceToAzureMonitorMetrics()
+    {
+        var options = MonitorOptions.Load(CreateConfiguration());
+
+        Assert.Equal(
+            ContainerMeasurementSource.AzureMonitorMetrics,
+            options.MeasurementSource);
+    }
+
+    [Fact]
+    public void LoadsBlobListingMeasurementSource()
+    {
+        var options = MonitorOptions.Load(CreateConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["GrowthMonitor:MeasurementSource"] = "BlobListing",
+                ["GrowthMonitor:BlobServiceUri"] = "https://test.blob.core.windows.net"
+            }));
+
+        Assert.Equal(ContainerMeasurementSource.BlobListing, options.MeasurementSource);
+        Assert.Equal(
+            new Uri("https://test.blob.core.windows.net"),
+            options.BlobServiceUri);
+    }
+
+    [Fact]
+    public void RequiresBlobServiceUriForBlobListing()
+    {
+        var configuration = CreateConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["GrowthMonitor:MeasurementSource"] = "BlobListing"
+            });
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => MonitorOptions.Load(configuration));
+
+        Assert.Contains("BlobServiceUri", exception.Message);
+    }
+
+    [Fact]
+    public void RejectsUnknownMeasurementSource()
+    {
+        var configuration = CreateConfiguration(
+            new Dictionary<string, string?>
+            {
+                ["GrowthMonitor:MeasurementSource"] = "Unknown"
+            });
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => MonitorOptions.Load(configuration));
+
+        Assert.Contains("MeasurementSource", exception.Message);
+    }
+
     private static IConfiguration CreateConfiguration(
         IDictionary<string, string?>? overrides = null)
     {

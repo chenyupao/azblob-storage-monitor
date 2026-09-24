@@ -2,6 +2,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace AzBlobStorageMonitor.Functions.Configuration;
 
+public enum ContainerMeasurementSource
+{
+    AzureMonitorMetrics,
+    BlobListing
+}
+
 public sealed class MonitorOptions
 {
     private const string SectionName = "GrowthMonitor";
@@ -25,6 +31,10 @@ public sealed class MonitorOptions
     public required long MinimumDailyGrowthBytes { get; init; }
 
     public required int MetricLookbackHours { get; init; }
+
+    public ContainerMeasurementSource MeasurementSource { get; init; }
+
+    public Uri? BlobServiceUri { get; init; }
 
     public static MonitorOptions Load(IConfiguration configuration)
     {
@@ -78,6 +88,36 @@ public sealed class MonitorOptions
                 $"'{SectionName}:SubscribersCsv' value is required.");
         }
 
+        var measurementSourceValue = configuration[
+            $"{SectionName}:{nameof(MeasurementSource)}"]
+            ?? nameof(ContainerMeasurementSource.AzureMonitorMetrics);
+        if (!Enum.TryParse<ContainerMeasurementSource>(
+                measurementSourceValue,
+                ignoreCase: true,
+                out var measurementSource)
+            || !Enum.IsDefined(measurementSource))
+        {
+            throw new InvalidOperationException(
+                $"Configuration '{SectionName}:{nameof(MeasurementSource)}' " +
+                $"must be '{nameof(ContainerMeasurementSource.AzureMonitorMetrics)}' " +
+                $"or '{nameof(ContainerMeasurementSource.BlobListing)}'.");
+        }
+
+        Uri? blobServiceUri = null;
+        var blobServiceUriValue = configuration[
+            $"{SectionName}:{nameof(BlobServiceUri)}"];
+        if (!string.IsNullOrWhiteSpace(blobServiceUriValue))
+        {
+            blobServiceUri = new Uri(blobServiceUriValue);
+        }
+        else if (measurementSource == ContainerMeasurementSource.BlobListing)
+        {
+            throw new InvalidOperationException(
+                $"Configuration '{SectionName}:{nameof(BlobServiceUri)}' is " +
+                $"required when '{SectionName}:{nameof(MeasurementSource)}' is " +
+                $"'{nameof(ContainerMeasurementSource.BlobListing)}'.");
+        }
+
         return new MonitorOptions
         {
             MonitorName = Required(nameof(MonitorName)),
@@ -98,7 +138,9 @@ public sealed class MonitorOptions
                 nameof(MinimumDailyGrowthBytes)),
             MetricLookbackHours = PositiveInt(
                 configuration[$"{SectionName}:{nameof(MetricLookbackHours)}"] ?? "24",
-                nameof(MetricLookbackHours))
+                nameof(MetricLookbackHours)),
+            MeasurementSource = measurementSource,
+            BlobServiceUri = blobServiceUri
         };
     }
 }

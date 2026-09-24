@@ -52,6 +52,13 @@ param growthWindowDays int
 @description('Minimum daily growth in bytes.')
 param minimumDailyGrowthBytes int
 
+@description('Container measurement implementation.')
+@allowed([
+  'AzureMonitorMetrics'
+  'BlobListing'
+])
+param measurementSource string
+
 @description('UTC NCRONTAB timer schedule.')
 param growthMonitorSchedule string
 
@@ -219,6 +226,8 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
     GrowthMonitor__MonitorName: monitorName
     GrowthMonitor__StorageAccountResourceId: resourceId(monitoredStorageSubscriptionId, monitoredStorageResourceGroupName, 'Microsoft.Storage/storageAccounts', monitoredStorageAccountName)
     GrowthMonitor__ContainerName: monitoredContainerName
+    GrowthMonitor__MeasurementSource: measurementSource
+    GrowthMonitor__BlobServiceUri: 'https://${monitoredStorageAccountName}.blob.${environment().suffixes.storage}'
     GrowthMonitor__HistoryTableServiceUri: storageAccount.properties.primaryEndpoints.table
     GrowthMonitor__HistoryTableName: historyTableName
     GrowthMonitor__LogicAppWebhookUrl: listCallbackUrl('${logicApp.id}/triggers/manual', '2019-05-01').value

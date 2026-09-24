@@ -39,6 +39,13 @@ param growthWindowDays int = 3
 @minValue(0)
 param minimumDailyGrowthBytes int = 0
 
+@description('Container measurement implementation. BlobListing avoids preview metrics by enumerating live blobs.')
+@allowed([
+  'AzureMonitorMetrics'
+  'BlobListing'
+])
+param measurementSource string = 'AzureMonitorMetrics'
+
 @description('UTC NCRONTAB schedule used by the timer trigger.')
 param growthMonitorSchedule string = '0 15 0 * * *'
 
@@ -132,6 +139,7 @@ module functionApp './modules/function-app.bicep' = {
     subscribers: subscribers
     growthWindowDays: growthWindowDays
     minimumDailyGrowthBytes: minimumDailyGrowthBytes
+    measurementSource: measurementSource
     growthMonitorSchedule: growthMonitorSchedule
     maximumInstanceCount: maximumInstanceCount
     instanceMemoryMB: instanceMemoryMB
@@ -149,6 +157,7 @@ module monitoredStorageRbac './modules/monitored-storage-rbac.bicep' = {
   params: {
     monitoredStorageAccountName: monitoredStorageAccountName
     functionPrincipalId: functionApp.outputs.functionPrincipalId
+    measurementSource: measurementSource
   }
 }
 

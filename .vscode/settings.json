@@ -1,3 +1,8 @@
 {
-    "chat.defaultModel": "auto"
+    "chat.defaultModel": "auto",
+    "chat.tools.terminal.autoApprove": {
+        "dotnet test": true,
+        "dotnet build": true,
+        "git -c core.whitespace=cr-at-eol": true
+    }
 }
