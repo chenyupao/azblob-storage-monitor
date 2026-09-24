@@ -1,8 +1,8 @@
 {
-    "recommendations": [
-       "ms-dotnettools.vscode-dotnet-runtime",
-       "ms-dotnettools.csharp",
-       "ms-azuretools.vscode-azurefunctions",
-       "ms-azuretools.vscode-bicep"
-    ]
+  "recommendations": [
+    "ms-azuretools.vscode-azurefunctions",
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.vscode-dotnet-runtime",
+    "ms-azuretools.vscode-bicep"
+  ]
 }

@@ -68,11 +68,15 @@ param instanceMemoryMB int
 @description('Resource tags.')
 param tags object
 
+@description('Optional principal ID (user, group, or service principal) granted read-only access to the state storage account so it can be browsed in the Azure Portal or Storage Explorer.')
+param resourceOwnerPrincipalId string = ''
+
 var storageBlobDataOwnerRoleId = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 var storageQueueDataContributorRoleId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
 var storageTableDataContributorRoleId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 var monitoringMetricsPublisherRoleId = '3913510d-42f4-4e42-8a64-420c390055eb'
+var storageBlobDataReaderRoleId = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
@@ -132,6 +136,25 @@ resource tableContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-0
   }
 }
 
+resource ownerBlobReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(resourceOwnerPrincipalId)) {
+  name: guid(storageAccount.id, resourceOwnerPrincipalId, storageBlobDataReaderRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataReaderRoleId)
+    principalId: resourceOwnerPrincipalId
+  }
+}
+
+// Contributor (not Reader) so the owner can also delete/edit rows via Storage Explorer
+resource ownerTableContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(resourceOwnerPrincipalId)) {
+  name: guid(storageAccount.id, resourceOwnerPrincipalId, storageTableDataContributorRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageTableDataContributorRoleId)
+    principalId: resourceOwnerPrincipalId
+  }
+}
+
 resource metricsPublisherRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(applicationInsights.id, functionIdentity.id, monitoringMetricsPublisherRoleId)
   scope: applicationInsights
@@ -171,11 +194,17 @@ resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
     serverFarmId: flexPlan.id
     httpsOnly: true
     clientCertEnabled: false
+    clientCertMode: 'Optional'
     publicNetworkAccess: 'Enabled'
     siteConfig: {
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
       http20Enabled: true
+      cors: {
+        allowedOrigins: [
+          'https://portal.azure.com'
+        ]
+      }
     }
     functionAppConfig: {
       deployment: {
@@ -211,6 +240,7 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
   parent: functionApp
   name: 'appsettings'
   properties: {
+    AZURE_CLIENT_ID: functionIdentity.properties.clientId
     AzureWebJobsStorage__accountName: storageAccount.name
     AzureWebJobsStorage__credential: 'managedidentity'
     AzureWebJobsStorage__clientId: functionIdentity.properties.clientId

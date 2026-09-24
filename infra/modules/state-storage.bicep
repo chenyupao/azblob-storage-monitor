@@ -67,6 +67,4 @@ resource historyTable 'Microsoft.Storage/storageAccounts/tableServices/tables@20
   name: historyTableName
 }
 
-output storageAccountId string = storageAccount.id
 output storageAccountName string = storageAccount.name
-output deploymentContainerUri string = '${storageAccount.properties.primaryEndpoints.blob}${deploymentContainerName}'

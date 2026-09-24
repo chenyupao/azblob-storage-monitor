@@ -127,6 +127,20 @@ The code uses `ManagedIdentityCredential` in Azure and
 `DefaultAzureCredential` during local development. Do not store storage keys
 or credentials in settings.
 
+The Function App only has a user-assigned managed identity attached, not a
+system-assigned one, so `ManagedIdentityCredential` must be told which
+identity to use. The `AZURE_CLIENT_ID` app setting (populated by the Bicep
+deployment from the user-assigned identity's client ID) is required; without
+it, authentication fails with "Unable to load the proper Managed Identity".
+
+Because the state storage account has shared key access disabled, viewing its
+blob deployment package or `BlobGrowthHistory` table in the Azure Portal or
+Azure Storage Explorer requires an Entra ID data-plane role. Set the Bicep
+parameter `resourceOwnerPrincipalId` to a user, group, or service principal
+object ID to grant it **Storage Blob Data Reader** and **Storage Table Data
+Contributor** on that account (Contributor, not Reader, so the owner can also
+delete or edit table rows). Leave it empty to skip this optional access.
+
 ## Configuration
 
 Copy `src\AzBlobStorageMonitor.Functions\local.settings.sample.json` to
@@ -148,6 +162,16 @@ Copy `src\AzBlobStorageMonitor.Functions\local.settings.sample.json` to
 | `GrowthMonitor__MetricLookbackHours` | Metric query lookback; default `24` |
 | `GrowthMonitor__Subscribers__N` | One email address per numbered setting |
 | `GrowthMonitor__SubscribersCsv` | Optional comma-separated subscriber list, used by the Bicep deployment |
+| `AZURE_CLIENT_ID` | Client ID of the Function App's user-assigned managed identity; required in Azure so `ManagedIdentityCredential` selects the right identity |
+
+To run a function manually from the Azure Portal (**Code + Test** ->
+**Test/Run**), the Function App must allow the `https://portal.azure.com`
+origin in CORS. The Bicep deployment sets this automatically; if it's
+missing, add it with:
+
+```powershell
+az functionapp cors add --name <function-app-name> --resource-group <resource-group> --allowed-origins https://portal.azure.com
+```
 
 The Bicep parameter is named `measurementSource` and assigns only the role
 needed by the selected implementation. `BlobListing` also requires network
@@ -269,6 +293,49 @@ Insights ingestion and the Consumption Logic App request trigger remain public
 Azure service endpoints. Restricting Azure Monitor requires Azure Monitor
 Private Link Scope; private Logic Apps ingress requires a different Logic Apps
 hosting design.
+
+### Deployed resources
+
+`infra\main.bicep` creates a new resource group and only touches the
+monitored storage account to add a role assignment; it does not modify or
+recreate that account.
+
+```text
+Subscription: <monitoredStorageSubscriptionId>
+│
+├── Resource group: <workloadResourceGroupName>  (created by this deployment)
+│   │
+│   ├── [Microsoft.ManagedIdentity] id-<workload>-<env>-<token>
+│   │      user-assigned identity used by the Function App
+│   │
+│   ├── [Microsoft.Web] plan-<workload>-<env>-<token>        (Flex Consumption, FC1)
+│   │   └── [Microsoft.Web] func-<workload>-<env>-<token>    (Function App, .NET 10 isolated)
+│   │          - GrowthMonitor__* app settings (measurementSource, schedule, window, etc.)
+│   │          - identity: user-assigned managed identity above
+│   │
+│   ├── [Microsoft.Storage] st<token>                        (state storage, StorageV2, shared keys disabled)
+│   │   ├── blobServices/default/containers/app-package-<token>   (Function deployment package)
+│   │   └── tableServices/default/tables/BlobGrowthHistory        (daily samples + alert state)
+│   │
+│   ├── [Microsoft.OperationalInsights] log-<workload>-<env>-<token>  (Log Analytics workspace)
+│   │
+│   ├── [Microsoft.Insights] appi-<workload>-<env>-<token>      (Application Insights, workspace-based)
+│   │
+│   └── [Microsoft.Logic] logic-<workload>-<env>-<token>        (Logic App, HTTP request trigger)
+│          - Configure_email_action placeholder, replace before production use
+│
+└── Resource group: <monitoredStorageResourceGroupName>  (pre-existing, not created by this deployment)
+    │
+    └── [Microsoft.Storage] <monitoredStorageAccountName>  (existing account being monitored)
+           - role assignment added for the Function's managed identity:
+             * Monitoring Reader        when measurementSource = AzureMonitorMetrics
+             * Storage Blob Data Reader when measurementSource = BlobListing
+```
+
+The Function App's managed identity also receives Storage Blob Data Owner,
+Storage Blob Data Contributor, Storage Queue Data Contributor, and Storage
+Table Data Contributor on the state storage account, plus Monitoring Metrics
+Publisher on Application Insights (all scoped within the new resource group).
 
 ## References
 

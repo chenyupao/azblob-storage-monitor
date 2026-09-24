@@ -16,13 +16,22 @@ var host = new HostBuilder()
 
         services.AddSingleton(options);
         services.AddSingleton<TokenCredential>(_ =>
-            string.Equals(
+        {
+            if (string.Equals(
                 context.HostingEnvironment.EnvironmentName,
                 "Development",
-                StringComparison.OrdinalIgnoreCase)
-                ? new DefaultAzureCredential()
-                : new ManagedIdentityCredential(
-                    new ManagedIdentityCredentialOptions()));
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return new DefaultAzureCredential();
+            }
+
+            // the Function App only has a user-assigned identity, so the client ID must be pinned explicitly
+            var clientId = context.Configuration["AZURE_CLIENT_ID"]
+                ?? throw new InvalidOperationException(
+                    "Configuration 'AZURE_CLIENT_ID' is required to select the user-assigned managed identity.");
+            return new ManagedIdentityCredential(
+                ManagedIdentityId.FromUserAssignedClientId(clientId));
+        });
         services.AddSingleton(sp =>
             new MetricsQueryClient(sp.GetRequiredService<TokenCredential>()));
         services.AddSingleton(sp =>

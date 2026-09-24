@@ -14,7 +14,7 @@ param workloadName string = 'blobmon'
 param environmentName string = 'prod'
 
 @description('Resource group created for the monitoring workload.')
-param resourceGroupName string = 'rg-${workloadName}-${environmentName}'
+param workloadResourceGroupName string
 
 @description('Subscription containing the existing storage account to monitor.')
 param monitoredStorageSubscriptionId string
@@ -61,14 +61,17 @@ param maximumInstanceCount int = 40
 ])
 param instanceMemoryMB int = 2048
 
+@description('Optional principal ID (user, group, or service principal) granted read-only access to the state storage account so it can be browsed in the Azure Portal or Storage Explorer.')
+param resourceOwnerPrincipalId string = ''
+
 @description('Tags applied to new resources.')
 param tags object = {}
 
-var resourceToken = take(toLower(uniqueString(subscription().id, resourceGroupName, location)), 8)
+var resourceToken = take(toLower(uniqueString(subscription().id, workloadResourceGroupName, location)), 8)
 var functionAppName = take('func-${workloadName}-${environmentName}-${resourceToken}', 60)
 var planName = take('plan-${workloadName}-${environmentName}-${resourceToken}', 60)
 var identityName = take('id-${workloadName}-${environmentName}-${resourceToken}', 128)
-var storageAccountName = take('st${toLower(uniqueString(subscription().id, resourceGroupName))}', 24)
+var storageAccountName = take('st${toLower(uniqueString(subscription().id, workloadResourceGroupName))}', 24)
 var workspaceName = take('log-${workloadName}-${environmentName}-${resourceToken}', 63)
 var appInsightsName = take('appi-${workloadName}-${environmentName}-${resourceToken}', 260)
 var logicAppName = take('logic-${workloadName}-${environmentName}-${resourceToken}', 80)
@@ -77,7 +80,7 @@ var historyTableName = 'BlobGrowthHistory'
 var monitorName = '${monitoredStorageAccountName}-${monitoredContainerName}'
 
 resource workloadResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
-  name: resourceGroupName
+  name: workloadResourceGroupName
   location: location
   tags: tags
 }
@@ -140,6 +143,7 @@ module functionApp './modules/function-app.bicep' = {
     growthMonitorSchedule: growthMonitorSchedule
     maximumInstanceCount: maximumInstanceCount
     instanceMemoryMB: instanceMemoryMB
+    resourceOwnerPrincipalId: resourceOwnerPrincipalId
     tags: tags
   }
   dependsOn: [

@@ -83,7 +83,8 @@ public sealed class TableMonitorHistoryStore : IMonitorHistoryStore
             StateRowKey,
             cancellationToken: cancellationToken);
 
-        return response.Value?.IsActive ?? false;
+        // response.Value throws on a 404, so HasValue must be checked first
+        return response.HasValue && response.Value!.IsActive;
     }
 
     public async Task SetAlertActiveAsync(

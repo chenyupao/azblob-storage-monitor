@@ -12,7 +12,10 @@ param subscribers = [
 ]
 param growthWindowDays = 3
 param minimumDailyGrowthBytes = 0
+// controls which IContainerSizeReader implementation the Function uses: 'AzureMonitorMetrics' or 'BlobListing'
 param measurementSource = 'BlobListing'
+// grants this principal (user/group/service principal object ID) read access to the state storage account for Azure Portal / Storage Explorer browsing
+param resourceOwnerPrincipalId = ''
 param tags = {
   workload: 'azblob-storage-monitor'
   environment: 'prod'
