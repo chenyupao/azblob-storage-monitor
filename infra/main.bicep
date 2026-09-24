@@ -72,7 +72,6 @@ var storageAccountName = take('st${toLower(uniqueString(subscription().id, resou
 var workspaceName = take('log-${workloadName}-${environmentName}-${resourceToken}', 63)
 var appInsightsName = take('appi-${workloadName}-${environmentName}-${resourceToken}', 260)
 var logicAppName = take('logic-${workloadName}-${environmentName}-${resourceToken}', 80)
-var vnetName = take('vnet-${workloadName}-${environmentName}-${resourceToken}', 64)
 var deploymentContainerName = 'app-package-${take(resourceToken, 8)}'
 var historyTableName = 'BlobGrowthHistory'
 var monitorName = '${monitoredStorageAccountName}-${monitoredContainerName}'
@@ -83,12 +82,11 @@ resource workloadResourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' =
   tags: tags
 }
 
-module networkStorage './modules/network-storage.bicep' = {
-  name: 'network-storage'
+module stateStorage './modules/state-storage.bicep' = {
+  name: 'state-storage'
   scope: workloadResourceGroup
   params: {
     location: location
-    vnetName: vnetName
     storageAccountName: storageAccountName
     deploymentContainerName: deploymentContainerName
     historyTableName: historyTableName
@@ -128,7 +126,6 @@ module functionApp './modules/function-app.bicep' = {
     storageAccountName: storageAccountName
     deploymentContainerName: deploymentContainerName
     historyTableName: historyTableName
-    integrationSubnetId: networkStorage.outputs.integrationSubnetId
     appInsightsName: appInsightsName
     logicAppName: logicAppName
     monitoredStorageSubscriptionId: monitoredStorageSubscriptionId
@@ -148,6 +145,7 @@ module functionApp './modules/function-app.bicep' = {
   dependsOn: [
     monitoring
     notification
+    stateStorage
   ]
 }
 
@@ -165,4 +163,3 @@ output resourceGroupName string = workloadResourceGroup.name
 output functionAppName string = functionApp.outputs.functionAppName
 output stateStorageAccountName string = storageAccountName
 output logicAppName string = logicAppName
-output virtualNetworkId string = networkStorage.outputs.virtualNetworkId

@@ -1,6 +1,6 @@
 using './main.bicep'
 
-param location = 'eastus2'
+param location = 'southeastasia'
 param workloadName = 'blobmon'
 param environmentName = 'prod'
 param monitoredStorageSubscriptionId = '<subscription-id>'

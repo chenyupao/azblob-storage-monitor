@@ -19,9 +19,6 @@ param deploymentContainerName string
 @description('History table name.')
 param historyTableName string
 
-@description('Flex Consumption VNet integration subnet resource ID.')
-param integrationSubnetId string
-
 @description('Application Insights component name.')
 param appInsightsName string
 
@@ -173,15 +170,12 @@ resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
   properties: {
     serverFarmId: flexPlan.id
     httpsOnly: true
-    clientCertEnabled: true
-    clientCertMode: 'Required'
-    publicNetworkAccess: 'Disabled'
-    virtualNetworkSubnetId: integrationSubnetId
+    clientCertEnabled: false
+    publicNetworkAccess: 'Enabled'
     siteConfig: {
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
       http20Enabled: true
-      vnetRouteAllEnabled: true
     }
     functionAppConfig: {
       deployment: {

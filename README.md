@@ -228,10 +228,8 @@ The `infra` directory contains a subscription-scope Bicep deployment for:
 
 - A .NET 10 Flex Consumption Function App.
 - A user-assigned managed identity and least-privilege RBAC assignments.
-- A private VNet integration subnet dedicated to Flex Consumption.
-- A separate private endpoint subnet.
-- A network-restricted StorageV2 account with Blob, Queue, and Table private
-  endpoints and private DNS.
+- A StorageV2 state account with shared keys disabled, reached over public
+  networking and authorized only through Entra ID.
 - Log Analytics and workspace-based Application Insights.
 - A Consumption Logic App with an HTTP request trigger.
 - Monitoring Reader access on the existing storage account being monitored.
